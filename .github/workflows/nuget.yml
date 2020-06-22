@@ -16,5 +16,5 @@ jobs:
         with:
           PROJECT_FILE_PATH: Likvido.Worker.AzureStorageQueue.csproj
           PACKAGE_NAME: Likvido.Worker.AzureStorageQueue
-          VERSION_STATIC: ${{ github.REF }}
+          VERSION_REGEX: <ReleaseVersion>(.*)<\/ReleaseVersion>
           NUGET_KEY: ${{ secrets.NUGET_API_KEY }}
