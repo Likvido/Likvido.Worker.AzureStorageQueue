@@ -17,7 +17,7 @@ public class Worker : AzureStorageQueueWorker<MyCustomMessage>
         this.logger = logger;
     }
 
-    protected override async Task ProcessMessage(MyCustomMessage message)
+    protected override async Task ProcessMessage(MyCustomMessage message, CancellationToken stoppingToken)
     {
         // TODO: Process the message
     }

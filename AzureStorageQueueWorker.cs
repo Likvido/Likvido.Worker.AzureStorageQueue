@@ -50,7 +50,7 @@
                     }
 
                     var message = JsonSerializer.Deserialize<T>(queueMessage.MessageText);
-                    await ProcessMessage(message);
+                    await ProcessMessage(message, stoppingToken);
                     await queueClient.DeleteMessageAsync(queueMessage.MessageId, queueMessage.PopReceipt, stoppingToken);
                 }
                 catch (TaskCanceledException) { }
@@ -61,6 +61,6 @@
             }
         }
 
-        protected abstract Task ProcessMessage(T message);
+        protected abstract Task ProcessMessage(T message, CancellationToken stoppingToken);
     }
 }
