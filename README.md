@@ -1,5 +1,5 @@
-![GitHub Workflow Status](https://img.shields.io/github/workflow/status/likvido/Likvido.Worker.AzureStorageQueue/Publish%20to%20nuget)
-![Nuget](https://img.shields.io/nuget/v/Likvido.Worker.AzureStorageQueue)
+[![GitHub Workflow Status](https://img.shields.io/github/workflow/status/likvido/Likvido.Worker.AzureStorageQueue/Publish%20to%20nuget)](https://github.com/Likvido/Likvido.Worker.AzureStorageQueue/actions?query=workflow%3A%22Publish+to+nuget%22)
+[![Nuget](https://img.shields.io/nuget/v/Likvido.Worker.AzureStorageQueue)](https://www.nuget.org/packages/Likvido.Worker.AzureStorageQueue/)
 # Likvido.Worker.AzureStorageQueue
 Small wrapper to ease creating services that read from Azure Storage Queues
 
