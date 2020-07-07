@@ -1,8 +1,11 @@
 name: Publish to nuget
 
 on:
-  release:
-    types: [published]
+  push:
+    branches:
+      - master
+    paths:
+      - version.props
 
 jobs:
   build:
@@ -15,6 +18,7 @@ jobs:
         uses: brandedoutcast/publish-nuget@v2.5.2
         with:
           PROJECT_FILE_PATH: Likvido.Worker.AzureStorageQueue.csproj
+          VERSION_FILE_PATH: version.props
           PACKAGE_NAME: Likvido.Worker.AzureStorageQueue
-          VERSION_REGEX: <ReleaseVersion>(.*)<\/ReleaseVersion>
+          VERSION_REGEX: <Version>(.*)<\/Version>
           NUGET_KEY: ${{ secrets.NUGET_API_KEY }}
