@@ -21,7 +21,7 @@ namespace Likvido.Worker.AzureStorageQueue
                 LogLevel.Error,
                 EventIds.UnhandledMessageProcessingException,
                 ex,
-                "An unhandled exception during messages processing was caught.");
+                "An unhandled exception during message processing was caught.");
 
         public static void SetupExceptionOccurred(this ILogger logger, Exception ex, string? message = null, params object[] args)
             => logger.Log(
@@ -36,6 +36,6 @@ namespace Likvido.Worker.AzureStorageQueue
                 LogLevel.Error,
                 EventIds.CustomErrorHandlerException,
                 ex,
-                "An unhandled exception was thrown on custom exception hander call.");
+                "An unhandled exception was thrown on a custom exception handler call.");
     }
 }

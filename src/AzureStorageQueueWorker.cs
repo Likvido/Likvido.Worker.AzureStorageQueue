@@ -63,7 +63,6 @@ namespace Likvido.Worker.AzureStorageQueue
             using var logScope = _logger.BeginScope("{Processor} reads {queueName}", processorName, _workerOptions.QueueName);
             try
             {
-                await Task.Yield();
                 var queueClient = new QueueClient(_workerOptions.AzureStorageConnectionString, _workerOptions.QueueName);
                 await queueClient.CreateIfNotExistsAsync();
                 while (!stoppingToken.IsCancellationRequested)
