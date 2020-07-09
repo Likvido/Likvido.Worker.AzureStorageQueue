@@ -17,7 +17,7 @@ jobs:
       - name: Publish NuGet
         uses: brandedoutcast/publish-nuget@v2.5.2
         with:
-          PROJECT_FILE_PATH: Likvido.Worker.AzureStorageQueue.csproj
+          PROJECT_FILE_PATH: src/Likvido.Worker.AzureStorageQueue.csproj
           VERSION_FILE_PATH: version.props
           PACKAGE_NAME: Likvido.Worker.AzureStorageQueue
           VERSION_REGEX: <Version>(.*)<\/Version>

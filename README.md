@@ -4,24 +4,31 @@
 Small wrapper to ease creating services that read from Azure Storage Queues
 
 ## Usage
-Create a new Worker service project, and install this package. Then change the base class of your `Worker` to `AzureStorageQueueWorker<T>` where `T` is the type of message you expect to receive (a POCO object):
+Create a new Worker service project, and install this package.
+Implement `IMessageProcessor<TMessage>` where `TMessage` is the type of message you expect to receive (a POCO object, string or QueueMessage):
 
 ```
-public class Worker : AzureStorageQueueWorker<MyCustomMessage>
+public class MessageProcessor : IMessageProcessor<MyCustomMessage>
 {
     private readonly ILogger<Worker> logger;
 
-    public Worker(
-        ILogger<Worker> logger,
-        IConfiguration configuration)
-        : base(logger, configuration["AZURE_STORAGE_CONNECTION_STRING"], configuration["QUEUE_NAME"])
+    public Worker(ILogger<Worker> logger)
     {
         this.logger = logger;
     }
 
-    protected override async Task ProcessMessage(MyCustomMessage message, CancellationToken stoppingToken)
+    public async Task ProcessMessage(MyCustomMessage message, CancellationToken stoppingToken)
     {
         // TODO: Process the message
     }
 }
+```
+Register created class in Program:
+```
+services.AddMessageProcessor<MyCustomMessage, MessageProcessor>(
+    (sp, b) =>
+    {
+        b.Options.AzureStorageConnectionString = "";
+        b.Options.QueueName = "";
+    });
 ```
