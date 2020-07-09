@@ -76,13 +76,6 @@ namespace Likvido.Worker.AzureStorageQueue
                     IOperationHolder<DependencyTelemetry>? operation = null;
                     try
                     {
-                        //clean values here before any code
-                        //otherwisewe can get previous loop cycle value in the catch/finally
-                        queueMessage = null;
-                        messageDetails = null;
-                        updateQueueMessageTask = null;
-                        updateMessageTokenSource = null;
-
                         var queueMessageResponse = await queueClient
                             .ReceiveMessagesAsync(1, _workerOptions.VisibilityTimeout, stoppingToken);
 
@@ -149,9 +142,7 @@ namespace Likvido.Worker.AzureStorageQueue
                             await updateQueueMessageTask;
                         }
                         scope?.Dispose();
-                        scope = null;
                         operation?.Dispose();
-                        operation = null;
                     }
                 }
             }
