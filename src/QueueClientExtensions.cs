@@ -25,17 +25,14 @@ namespace Likvido.Worker.AzureStorageQueue
             try
             {
                 await queueClient.SendMessageAsync(message, visibilityTimeout, cancellationToken: cancellationToken);
-                return;
             }
             catch (RequestFailedException exception)
             when (exception.ErrorCode == QueueErrorCode.QueueNotFound
                && exception.Status == 404)
             {
-                //swallow
+                await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+                await queueClient.SendMessageAsync(message, cancellationToken);
             }
-
-            await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-            await queueClient.SendMessageAsync(message, cancellationToken);
         }
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 
 namespace Likvido.Worker.AzureStorageQueue
@@ -7,10 +6,10 @@ namespace Likvido.Worker.AzureStorageQueue
     public class AzureStorageQueueWorkerOptions
     {
         private TimeSpan _noMessagesSleepDuration = TimeSpan.FromSeconds(30);
-        private string _queueName;
-        private string _azureStorageConnectionString;
+        private string? _queueName;
+        private string? _azureStorageConnectionString;
         private TimeSpan _visibilityTimeout = TimeSpan.FromSeconds(30);
-        private string _poisonQueueName;
+        private string? _poisonQueueName;
         private int _maxRetryCount = 5;
 
         /// <summary>
@@ -29,18 +28,10 @@ namespace Likvido.Worker.AzureStorageQueue
             }
         }
 
-        [NotNull]
         public string QueueName
         {
-            get { return _queueName; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(QueueName));
-                }
-                _queueName = value;
-            }
+            get { return _queueName!; }
+            set { _queueName = value; }
         }
 
         /// <summary>
@@ -59,21 +50,13 @@ namespace Likvido.Worker.AzureStorageQueue
             set { _poisonQueueName = value; }
         }
 
-        [NotNull]
         public string AzureStorageConnectionString
         {
-            get { return _azureStorageConnectionString; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(AzureStorageConnectionString));
-                }
-                _azureStorageConnectionString = value;
-            }
+            get { return _azureStorageConnectionString!; }
+            set { _azureStorageConnectionString = value; }
         }
 
-        public Func<IServiceProvider, Exception, Task> UnhandledExceptionHandler { get; set; }
+        public Func<IServiceProvider, Exception, Task>? UnhandledExceptionHandler { get; set; }
         public bool Base64Decode { get; set; } = true;
         public int? SetupIssueStopHostCode { get; set; } //null means no stop usefull
         public int? ProcessingIssueStopHostCode { get; set; } //null means no stop usefull
@@ -81,7 +64,6 @@ namespace Likvido.Worker.AzureStorageQueue
         /// <summary>
         /// Default is 30 seconds
         /// </summary>
-        [NotNull]
         public TimeSpan NoMessagesSleepDuration
         {
             get { return _noMessagesSleepDuration; }
@@ -112,7 +94,19 @@ namespace Likvido.Worker.AzureStorageQueue
                     throw new ArgumentException("Sleep duration must be 5 seconds minimum", nameof(MaxRetryCount));
                 }
 
-                _maxRetryCount = value; 
+                _maxRetryCount = value;
+            }
+        }
+
+        internal void Validate()
+        {
+            if (string.IsNullOrWhiteSpace(_azureStorageConnectionString))
+            {
+                throw new ArgumentNullException(nameof(AzureStorageConnectionString));
+            }
+            if (string.IsNullOrWhiteSpace(_queueName))
+            {
+                throw new ArgumentNullException(nameof(QueueName));
             }
         }
     }
