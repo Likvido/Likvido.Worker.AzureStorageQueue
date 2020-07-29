@@ -13,6 +13,11 @@ namespace Likvido.Worker.AzureStorageQueue
 
         public static string GetDecodedMessageText(this QueueMessage message)
         {
+            if (message == null)
+            {
+                return string.Empty;
+            }
+
             return Encoding.UTF8.GetString(Convert.FromBase64String(message.MessageText));
         }
     }

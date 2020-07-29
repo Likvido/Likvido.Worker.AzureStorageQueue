@@ -5,7 +5,7 @@ namespace Likvido.Worker.AzureStorageQueue
 {
     public static class LoggerExtensions
     {
-        public static class EventIds
+        private static class EventIds
         {
             public static readonly EventId OperationCancelledExceptionCaught = new EventId(1000, nameof(OperationCancelledExceptionCaught));
             public static readonly EventId UnhandledMessageProcessingException = new EventId(1001, nameof(UnhandledMessageProcessingException));
