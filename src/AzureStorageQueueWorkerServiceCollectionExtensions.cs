@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using Microsoft.ApplicationInsights.DependencyCollector;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -28,6 +29,7 @@ namespace Likvido.Worker.AzureStorageQueue
             {
                 _telemetryConfigured = true;
                 serviceCollection.AddApplicationInsightsTelemetryWorkerService();
+                serviceCollection.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((module, o) => { module.EnableSqlCommandTextInstrumentation = true; });
             }
 
             serviceCollection.TryAdd(

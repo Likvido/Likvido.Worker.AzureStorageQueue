@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -70,9 +71,8 @@ namespace Likvido.Worker.AzureStorageQueue
                     var processed = false;
                     MessageDetails? messageDetails = null;
                     QueueMessage? queueMessage = null;
-                    CancellationTokenSource? updateMessageTokenSource = null;
-                    Task? updateQueueMessageTask = null;
                     IServiceScope? scope = null;
+                    IAsyncDisposable? updateVisibilityStopAction = null;
                     IOperationHolder<DependencyTelemetry>? operation = null;
                     try
                     {
@@ -95,22 +95,19 @@ namespace Likvido.Worker.AzureStorageQueue
                         operation.Telemetry.Data = "MessageId: " + queueMessage.MessageId;
                         operation.Telemetry.Properties["MessageId"] = queueMessage.MessageId;
 
-                        updateMessageTokenSource = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
-                        var visibilityToken = updateMessageTokenSource.Token;
-                        updateQueueMessageTask = Task.Run(() =>
-                            KeepMessageInvisibleAsync(queueClient, messageDetails, visibilityToken), visibilityToken);
+                        updateVisibilityStopAction  = await StartKeepMessageInvisibleAsync(queueClient, messageDetails);
 
                         scope = _serviceProvider.CreateScope();
                         var messageProcessor = scope.ServiceProvider.GetRequiredService<TMessageProcessor>();
-                        await messageProcessor.ProcessMessage(GetTypedMessage(queueMessage), stoppingToken);
+                        var lastAttempt = messageDetails.Message.DequeueCount >= _workerOptions.MaxRetryCount;
+                        await messageProcessor.ProcessMessage(GetTypedMessage(queueMessage), lastAttempt, stoppingToken);
                         processed = true;
                         _telemetryClient.TrackTrace("Processor finished"); //short cut for now. TOOD:// wrap processing in a separate operation
 
                         //stoppingToken aren't passed here. We should try to delete message even if cancellation was requested
                         //if operation was done
-                        await DeleteMessageAsync(queueClient, messageDetails, updateMessageTokenSource);
+                        await DeleteMessageAsync(queueClient, messageDetails, updateVisibilityStopAction);
                         operation.Telemetry.Success = true;
-
                     }
                     catch (OperationCanceledException)
                     {
@@ -124,7 +121,7 @@ namespace Likvido.Worker.AzureStorageQueue
                     {
                         if (!processed && messageDetails != null)
                         {
-                            await TryMoveToPoisonAsync(queueClient, messageDetails, updateMessageTokenSource);
+                            await TryMoveToPoisonAsync(queueClient, messageDetails, updateVisibilityStopAction);
                         }
 
                         _logger.UnhandledMessageProcessingExceptionOccurred(ex);
@@ -136,10 +133,9 @@ namespace Likvido.Worker.AzureStorageQueue
                     }
                     finally
                     {
-                        updateMessageTokenSource?.Cancel(); //the second cancellation won't make things worse but useful in case of errors
-                        if (updateQueueMessageTask != null)
+                        if (updateVisibilityStopAction != null)
                         {
-                            await updateQueueMessageTask;
+                            await updateVisibilityStopAction.DisposeAsync();
                         }
                         scope?.Dispose();
                         operation?.Dispose();
@@ -156,11 +152,14 @@ namespace Likvido.Worker.AzureStorageQueue
         private async Task DeleteMessageAsync(
             QueueClient queueClient,
             MessageDetails messageDetails,
-            CancellationTokenSource? updateMessageTokenSource)
+            IAsyncDisposable? updateVisibilityStopAction)
         {
             await ModifyMessageAsync(async () =>
             {
-                updateMessageTokenSource?.Cancel(); //stops update visibility attempts
+                if (updateVisibilityStopAction != null)
+                {
+                    await updateVisibilityStopAction.DisposeAsync();
+                }
                 await _deleteMessagePolicy
                     .ExecuteAsync(() =>
                         queueClient.DeleteMessageAsync(messageDetails.Message.MessageId, messageDetails.Receipt));
@@ -170,14 +169,14 @@ namespace Likvido.Worker.AzureStorageQueue
         private async Task TryMoveToPoisonAsync(
             QueueClient queueClient,
             MessageDetails messageDetails,
-            CancellationTokenSource? updateMessageTokenSource)
+            IAsyncDisposable? updateVisibilityStopAction)
         {
             if (messageDetails.Message.DequeueCount >= _workerOptions.MaxRetryCount)
             {
                 try
                 {
                     await PoisonQueueClient.AddMessageAndCreateIfNotExistsAsync(messageDetails.Message.MessageText);
-                    await DeleteMessageAsync(queueClient, messageDetails, updateMessageTokenSource);
+                    await DeleteMessageAsync(queueClient, messageDetails, updateVisibilityStopAction);
                 }
                 catch (Exception e)
                 {
@@ -226,16 +225,16 @@ namespace Likvido.Worker.AzureStorageQueue
             }
         }
 
-        private TMessage GetTypedMessage(QueueMessage message)
+        private static TMessage GetTypedMessage(QueueMessage message)
         {
             if (typeof(TMessage) == typeof(string))
             {
-                return (TMessage)Convert.ChangeType(message.GetDecodedMessageText(), typeof(TMessage));
+                return (TMessage)Convert.ChangeType(message.GetDecodedMessageText(), typeof(TMessage), CultureInfo.InvariantCulture);
             }
 
             if (typeof(TMessage) == typeof(QueueMessage))
             {
-                return (TMessage)Convert.ChangeType(message, typeof(TMessage));
+                return (TMessage)Convert.ChangeType(message, typeof(TMessage), CultureInfo.InvariantCulture);
             }
 
             return JsonSerializer.Deserialize<TMessage>(
@@ -246,6 +245,25 @@ namespace Likvido.Worker.AzureStorageQueue
                     AllowTrailingCommas = true,
                     ReadCommentHandling = JsonCommentHandling.Skip
                 });
+        }
+
+        private Task<IAsyncDisposable> StartKeepMessageInvisibleAsync(
+            QueueClient queueClient,
+            MessageDetails messageDetails)
+        {
+#pragma warning disable CA2000 // Dispose objects before losing scope
+            var updateMessageTokenSource = new CancellationTokenSource();
+#pragma warning restore CA2000 // Dispose objects before losing scope
+            var updateQueueMessageTask = KeepMessageInvisibleAsync(queueClient, messageDetails, updateMessageTokenSource.Token);
+
+            var disposeAction = new DisposeAction(async () =>
+            {
+                updateMessageTokenSource.Cancel();
+                updateMessageTokenSource.Dispose();
+                await updateQueueMessageTask;
+            });
+
+            return Task.FromResult((IAsyncDisposable)disposeAction);
         }
 
         private async Task KeepMessageInvisibleAsync(

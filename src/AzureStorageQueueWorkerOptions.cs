@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 
 namespace Likvido.Worker.AzureStorageQueue
@@ -102,11 +103,11 @@ namespace Likvido.Worker.AzureStorageQueue
         {
             if (string.IsNullOrWhiteSpace(_azureStorageConnectionString))
             {
-                throw new ArgumentNullException(nameof(AzureStorageConnectionString));
+                throw new ValidationException($"{nameof(AzureStorageConnectionString)} must be defined.");
             }
             if (string.IsNullOrWhiteSpace(_queueName))
             {
-                throw new ArgumentNullException(nameof(QueueName));
+                throw new ArgumentNullException($"{nameof(QueueName)} must be defined.");
             }
         }
     }
