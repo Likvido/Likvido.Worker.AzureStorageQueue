@@ -73,7 +73,7 @@ namespace Likvido.Worker.AzureStorageQueue
                     QueueMessage? queueMessage = null;
                     IServiceScope? scope = null;
                     IAsyncDisposable? updateVisibilityStopAction = null;
-                    IOperationHolder<DependencyTelemetry>? operation = null;
+                    IOperationHolder<RequestTelemetry>? operation = null;
                     try
                     {
                         var queueMessageResponse = await queueClient
@@ -90,10 +90,13 @@ namespace Likvido.Worker.AzureStorageQueue
 
                         messageDetails = new MessageDetails(queueMessage);
 
-                        operation = _telemetryClient.StartOperation<DependencyTelemetry>("process " + _workerOptions.QueueName);
-                        operation.Telemetry.Type = processorName;
-                        operation.Telemetry.Data = "MessageId: " + queueMessage.MessageId;
+                        operation = _telemetryClient.StartOperation<RequestTelemetry>(_workerOptions.OperationName);
+                        operation.Telemetry.Properties["InvocationId"] = queueMessage.MessageId;
                         operation.Telemetry.Properties["MessageId"] = queueMessage.MessageId;
+                        operation.Telemetry.Properties["OperationName"] = _workerOptions.OperationName;
+                        operation.Telemetry.Properties["TriggerReason"] = $"New queue message detected on '{_workerOptions.QueueName}'.";
+                        operation.Telemetry.Properties["QueueName"] = _workerOptions.QueueName;
+                        operation.Telemetry.Properties["Processor"] = typeof(TMessageProcessor).Name;
 
                         updateVisibilityStopAction  = await StartKeepMessageInvisibleAsync(queueClient, messageDetails);
 

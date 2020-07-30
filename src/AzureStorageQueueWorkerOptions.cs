@@ -12,6 +12,7 @@ namespace Likvido.Worker.AzureStorageQueue
         private TimeSpan _visibilityTimeout = TimeSpan.FromSeconds(30);
         private string? _poisonQueueName;
         private int _maxRetryCount = 5;
+        private string? _operationName;
 
         /// <summary>
         /// Default 30 seconds which is default for QueueClient.ReceiveMessagesAsync
@@ -33,6 +34,20 @@ namespace Likvido.Worker.AzureStorageQueue
         {
             get { return _queueName!; }
             set { _queueName = value; }
+        }
+
+        public string OperationName
+        {
+            get 
+            {
+                if (string.IsNullOrWhiteSpace(_operationName))
+                {
+                    _operationName = $"Process {QueueName}";
+                }
+
+                return _operationName;
+            }
+            set { _operationName = value; }
         }
 
         /// <summary>
