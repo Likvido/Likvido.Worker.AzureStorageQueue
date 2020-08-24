@@ -108,6 +108,7 @@ namespace Likvido.Worker.AzureStorageQueue
                 if (operation != null)
                 {
                     operation.Telemetry.Success = false;
+                    operation.Telemetry.ResponseCode = "400";
                 }
             }
             catch (Exception ex)
@@ -122,6 +123,7 @@ namespace Likvido.Worker.AzureStorageQueue
                 if (operation != null)
                 {
                     operation.Telemetry.Success = false;
+                    operation.Telemetry.ResponseCode = "500";
                 }
             }
             finally
