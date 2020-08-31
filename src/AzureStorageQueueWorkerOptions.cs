@@ -15,6 +15,11 @@ namespace Likvido.Worker.AzureStorageQueue
         private string? _operationName;
 
         /// <summary>
+        /// Ideally should be set only for the first background service 2-15 seconds
+        /// </summary>
+        public TimeSpan? FlushTimeout { get; set; }
+
+        /// <summary>
         /// Default 30 seconds which is default for QueueClient.ReceiveMessagesAsync
         /// </summary>
         public TimeSpan VisibilityTimeout

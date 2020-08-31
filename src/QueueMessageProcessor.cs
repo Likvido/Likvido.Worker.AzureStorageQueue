@@ -101,6 +101,7 @@ namespace Likvido.Worker.AzureStorageQueue
                 //if operation was done
                 await DeleteMessageAsync(_queueClient, messageDetails, updateVisibilityStopAction);
                 operation.Telemetry.Success = true;
+                operation.Telemetry.ResponseCode = "0";
             }
             catch (OperationCanceledException)
             {

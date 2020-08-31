@@ -79,6 +79,13 @@ namespace Likvido.Worker.AzureStorageQueue
                         _logger.UnhandledMessageProcessingExceptionOccurred(ex);
                     }
                 }
+
+                _telemetryClient.Flush();
+                if (_workerOptions.FlushTimeout.HasValue)
+                {
+                    //https://github.com/microsoft/ApplicationInsights-dotnet/issues/407
+                    await Task.Delay(_workerOptions.FlushTimeout.Value);
+                }
             }
             catch (Exception ex)
             {
