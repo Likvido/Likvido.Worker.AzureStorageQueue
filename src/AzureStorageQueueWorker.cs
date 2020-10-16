@@ -1,18 +1,12 @@
 ﻿using System;
-using System.Globalization;
 using System.Linq;
-using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using Microsoft.ApplicationInsights;
-using Microsoft.ApplicationInsights.DataContracts;
-using Microsoft.ApplicationInsights.Extensibility;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Polly;
 
 namespace Likvido.Worker.AzureStorageQueue
 {
@@ -46,7 +40,7 @@ namespace Likvido.Worker.AzureStorageQueue
             try
             {
                 var queueClient = new QueueClient(_workerOptions.AzureStorageConnectionString, _workerOptions.QueueName);
-                await queueClient.CreateIfNotExistsAsync();
+                await queueClient.CreateIfNotExistsAsync(cancellationToken: CancellationToken.None);
                 using var processor = new QueueMessageProcessor<TMessage, TMessageProcessor>(
                             _logger,
                             queueClient,
@@ -84,7 +78,7 @@ namespace Likvido.Worker.AzureStorageQueue
                 if (_workerOptions.FlushTimeout.HasValue)
                 {
                     //https://github.com/microsoft/ApplicationInsights-dotnet/issues/407
-                    await Task.Delay(_workerOptions.FlushTimeout.Value);
+                    await Task.Delay(_workerOptions.FlushTimeout.Value, CancellationToken.None);
                 }
             }
             catch (Exception ex)

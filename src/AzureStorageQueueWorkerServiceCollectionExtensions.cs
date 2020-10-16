@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.DependencyCollector;
+using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
@@ -10,14 +12,15 @@ namespace Likvido.Worker.AzureStorageQueue
 {
     public static class AzureStorageQueueWorkerServiceCollectionExtensions
     {
-        private static bool _timeoutConfigured = false;
-        private static bool _telemetryConfigured = false;
+        private static bool _timeoutConfigured;
+        private static bool _telemetryConfigured;
 
         public static IServiceCollection AddMessageProcessor<TMessage, TMessageProcessor>(
             this IServiceCollection serviceCollection,
             Action<IServiceProvider, AzureStorageQueueWorkerOptionsBuilder> optionsAction,
             ServiceLifetime serviceLifetime = ServiceLifetime.Scoped,
-            bool configureTelemetry = true)
+            bool configureTelemetry = true,
+            bool avoidMessageSampling = true)
             where TMessageProcessor : IMessageProcessor<TMessage>
         {
             if (!_timeoutConfigured)
@@ -25,11 +28,26 @@ namespace Likvido.Worker.AzureStorageQueue
                 _timeoutConfigured = true;
                 serviceCollection.PostConfigure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(20));
             }
-            if (!_telemetryConfigured && configureTelemetry)
+
+            if (configureTelemetry)
             {
-                _telemetryConfigured = true;
-                serviceCollection.AddApplicationInsightsTelemetryWorkerService();
-                serviceCollection.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((module, o) => { module.EnableSqlCommandTextInstrumentation = true; });
+                if (avoidMessageSampling)
+                {
+                    ServiceCollectionDescriptorExtensions
+                        .Add(
+                            serviceCollection,
+                            new ServiceDescriptor(
+                                typeof(ITelemetryInitializer),
+                                p => CreateAvoidSamplingTelemetryInitializer<TMessageProcessor>(p),
+                                ServiceLifetime.Singleton));
+                }
+
+                if (!_telemetryConfigured)
+                {
+                    _telemetryConfigured = true;
+                    serviceCollection.AddApplicationInsightsTelemetryWorkerService();
+                    serviceCollection.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((module, o) => { module.EnableSqlCommandTextInstrumentation = true; });
+                }
             }
 
             serviceCollection.TryAdd(
@@ -47,6 +65,15 @@ namespace Likvido.Worker.AzureStorageQueue
             serviceCollection.AddHostedService<AzureStorageQueueWorker<TMessage, TMessageProcessor>>();
 
             return serviceCollection;
+        }
+
+        private static ITelemetryInitializer CreateAvoidSamplingTelemetryInitializer<TMessageProcessor>(IServiceProvider applicationServiceProvider)
+        {
+            var options = applicationServiceProvider
+                .GetRequiredService<AzureStorageQueueWorkerOptions<TMessageProcessor>>();
+            return new AvoidSamplingTelemetryInitializer(
+                t => t is RequestTelemetry telemetry
+                    && telemetry.Name == options.OperationName);
         }
 
         private static AzureStorageQueueWorkerOptions<TMessageProcessor> CreateAzureStorageQueueWorkerOptions<TMessage, TMessageProcessor>(
