@@ -174,11 +174,11 @@ namespace Likvido.Worker.AzureStorageQueue
             }
         }
 
-        private static TMessage GetTypedMessage(QueueMessage message)
+        private TMessage GetTypedMessage(QueueMessage message)
         {
             if (typeof(TMessage) == typeof(string))
             {
-                return (TMessage)Convert.ChangeType(message.GetDecodedMessageText(), typeof(TMessage), CultureInfo.InvariantCulture);
+                return (TMessage)Convert.ChangeType(message.GetMessageText(_workerOptions.Base64Decode), typeof(TMessage), CultureInfo.InvariantCulture);
             }
 
             if (typeof(TMessage) == typeof(QueueMessage))
@@ -187,7 +187,7 @@ namespace Likvido.Worker.AzureStorageQueue
             }
 
             return JsonSerializer.Deserialize<TMessage>(
-                message.GetDecodedMessageText(),
+                message.GetMessageText(_workerOptions.Base64Decode),
                 new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
