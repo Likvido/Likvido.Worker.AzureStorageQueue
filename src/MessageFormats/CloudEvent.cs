@@ -2,6 +2,10 @@
 
 namespace Likvido.Worker.AzureStorageQueue.MessageFormats
 {
+    /// <summary>
+    /// Implementation of a cloud event, using v1.0
+    /// Spec: https://github.com/cloudevents/spec/blob/v1.0/spec.md
+    /// </summary>
     public class CloudEvent
     {
         public string Id { get; set; } = null!;
