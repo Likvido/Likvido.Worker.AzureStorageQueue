@@ -5,7 +5,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Likvido.Worker.AzureStorage
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Folder", "Solution Folder", "{A4257B99-86E2-4F0D-A3C2-CF7252D7F852}"
 	ProjectSection(SolutionItems) = preProject
-		.github\workflows\nuget.yml = .github\workflows\nuget.yml
+		..\.github\workflows\nuget.yml = ..\.github\workflows\nuget.yml
+		..\version.props = ..\version.props
+		..\README.md = ..\README.md
+		..\LICENSE = ..\LICENSE
 	EndProjectSection
 EndProject
 Global
