@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.DependencyCollector;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -29,25 +28,22 @@ namespace Likvido.Worker.AzureStorageQueue
                 serviceCollection.PostConfigure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(20));
             }
 
-            if (configureTelemetry)
+            if (configureTelemetry && !_telemetryConfigured)
             {
-                if (avoidMessageSampling)
-                {
-                    ServiceCollectionDescriptorExtensions
-                        .Add(
-                            serviceCollection,
-                            new ServiceDescriptor(
-                                typeof(ITelemetryInitializer),
-                                p => CreateAvoidSamplingTelemetryInitializer<TMessageProcessor>(p),
-                                ServiceLifetime.Singleton));
-                }
+                _telemetryConfigured = true;
+                serviceCollection.AddApplicationInsightsTelemetryWorkerService();
+                serviceCollection.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((module, o) => { module.EnableSqlCommandTextInstrumentation = true; });
+            }
 
-                if (!_telemetryConfigured)
-                {
-                    _telemetryConfigured = true;
-                    serviceCollection.AddApplicationInsightsTelemetryWorkerService();
-                    serviceCollection.ConfigureTelemetryModule<DependencyTrackingTelemetryModule>((module, o) => { module.EnableSqlCommandTextInstrumentation = true; });
-                }
+            if (avoidMessageSampling)
+            {
+                ServiceCollectionDescriptorExtensions
+                    .Add(
+                        serviceCollection,
+                        new ServiceDescriptor(
+                            typeof(ITelemetryInitializer),
+                            CreateAvoidSamplingTelemetryInitializer<TMessageProcessor>,
+                            ServiceLifetime.Singleton));
             }
 
             serviceCollection.TryAdd(
