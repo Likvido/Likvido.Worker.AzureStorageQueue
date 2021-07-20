@@ -26,7 +26,7 @@ namespace Likvido.Worker.AzureStorageQueue
             if (!_timeoutConfigured)
             {
                 _timeoutConfigured = true;
-                shoutdownTimeout ??= TimeSpan.FromSeconds(20);
+                shoutdownTimeout ??= TimeSpan.FromMinutes(5);
                 serviceCollection.PostConfigure<HostOptions>(o => o.ShutdownTimeout = shoutdownTimeout.Value);
             }
 
