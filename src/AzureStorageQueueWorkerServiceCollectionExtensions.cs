@@ -20,14 +20,14 @@ namespace Likvido.Worker.AzureStorageQueue
             ServiceLifetime serviceLifetime = ServiceLifetime.Scoped,
             bool configureTelemetry = true,
             bool avoidMessageSampling = true,
-            TimeSpan? shoutdownTimeout = null)
+            TimeSpan? shutdownTimeout = null)
             where TMessageProcessor : IMessageProcessor<TMessage>
         {
             if (!_timeoutConfigured)
             {
                 _timeoutConfigured = true;
-                shoutdownTimeout ??= TimeSpan.FromMinutes(5);
-                serviceCollection.PostConfigure<HostOptions>(o => o.ShutdownTimeout = shoutdownTimeout.Value);
+                shutdownTimeout ??= TimeSpan.FromMinutes(5);
+                serviceCollection.PostConfigure<HostOptions>(o => o.ShutdownTimeout = shutdownTimeout.Value);
             }
 
             if (configureTelemetry && !_telemetryConfigured)
