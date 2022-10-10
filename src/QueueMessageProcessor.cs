@@ -193,7 +193,7 @@ namespace Likvido.Worker.AzureStorageQueue
                     PropertyNameCaseInsensitive = true,
                     AllowTrailingCommas = true,
                     ReadCommentHandling = JsonCommentHandling.Skip
-                });
+                })!;
         }
 
         private Task<IAsyncDisposable> StartKeepMessageInvisibleAsync(
