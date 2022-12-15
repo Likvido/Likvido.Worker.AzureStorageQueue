@@ -15,7 +15,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Publish NuGet
-        uses: brandedoutcast/publish-nuget@v2.5.2
+        uses: brandedoutcast/publish-nuget@v2.5.5
         with:
           PROJECT_FILE_PATH: src/Likvido.Worker.AzureStorageQueue.csproj
           VERSION_FILE_PATH: version.props
