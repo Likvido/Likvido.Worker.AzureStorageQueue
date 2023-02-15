@@ -21,11 +21,7 @@ jobs:
         with:
           dotnet-version: 7.x
 
-      - name: Build binaries
-        run: dotnet build -c Release src/Likvido.Worker.AzureStorageQueue.csproj
-
-      - name: Creating a package
-        run: dotnet pack --no-build -c Release src/Likvido.Worker.AzureStorageQueue.csproj -o .
-
-      - name: Publish to Nuget
-        run: dotnet nuget push *.nupkg -s https://api.nuget.org/v3/index.json -k ${{ secrets.NUGET_API_KEY }} --skip-duplicate -n
+      - name: Publish NuGet
+        uses: likvido/github-actions/simple-nuget@nuget-v1
+        with:
+          project: src/Likvido.Worker.AzureStorageQueue.csproj
