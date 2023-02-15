@@ -22,6 +22,7 @@ jobs:
           dotnet-version: 7.x
 
       - name: Publish NuGet
-        uses: likvido/github-actions/simple-nuget@nuget-v1
+        uses: likvido/github-actions/simple-nuget@nuget-v1.1
         with:
           project: src/Likvido.Worker.AzureStorageQueue.csproj
+          nuget-key: ${{ secrets.NUGET_API_KEY }}
