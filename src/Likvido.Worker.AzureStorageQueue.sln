@@ -9,6 +9,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Folder", "Solution
 		..\version.props = ..\version.props
 		..\README.md = ..\README.md
 		..\LICENSE = ..\LICENSE
+		..\.gitignore = ..\.gitignore
 	EndProjectSection
 EndProject
 Global
