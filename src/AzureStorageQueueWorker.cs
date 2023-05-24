@@ -68,6 +68,11 @@ namespace Likvido.Worker.AzureStorageQueue
 
                         await processor.ProcessMessage(queueMessage, stoppingToken);
                     }
+                    catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                    {
+                        // If stoppingToken is cancelled, an OperationCanceledException is expected, so just break
+                        break;
+                    }
                     catch (Exception ex)
                     {
                         _logger.UnhandledMessageProcessingExceptionOccurred(ex);
