@@ -94,11 +94,12 @@ namespace Likvido.Worker.AzureStorageQueue
                 var messageProcessor = scope.ServiceProvider.GetRequiredService<TMessageProcessor>();
                 var lastAttempt = messageDetails.Message.DequeueCount >= _workerOptions.MaxRetryCount;
                 await messageProcessor.ProcessMessage(GetTypedMessage(queueMessage), lastAttempt, stoppingToken);
+
+                stoppingToken.ThrowIfCancellationRequested();
+
                 processed = true;
                 _telemetryClient.TrackTrace("Processor finished"); //short cut for now. TOOD:// wrap processing in a separate operation
 
-                //stoppingToken aren't passed here. We should try to delete message even if cancellation was requested
-                //if operation was done
                 await DeleteMessageAsync(_queueClient, messageDetails, updateVisibilityStopAction);
                 operation.Telemetry.Success = true;
                 operation.Telemetry.ResponseCode = "0";
