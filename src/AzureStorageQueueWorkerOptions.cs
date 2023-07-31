@@ -15,11 +15,13 @@ namespace Likvido.Worker.AzureStorageQueue
         private string? _operationName;
 
         /// <summary>
-        /// Ideally should be set only for the first background service 2-15 seconds
+        /// This will add a delay after flushing logs to Application Insights when the application is stopping
+        /// Ideally should be set only for the first background service, with a value of 2-15 seconds
         /// </summary>
         public TimeSpan? FlushTimeout { get; set; }
 
         /// <summary>
+        /// The time the message is invisible in the queue after it has been read
         /// Default 30 seconds which is default for QueueClient.ReceiveMessagesAsync
         /// </summary>
         public TimeSpan VisibilityTimeout
@@ -29,7 +31,7 @@ namespace Likvido.Worker.AzureStorageQueue
             {
                 if (TimeSpan.FromSeconds(5) > value)
                 {
-                    throw new ArgumentException("Timeout must be 5 seconds minimum", nameof(VisibilityTimeout));
+                    throw new ArgumentException("Must be minimum 5 seconds", nameof(VisibilityTimeout));
                 }
                 _visibilityTimeout = value;
             }
@@ -56,7 +58,7 @@ namespace Likvido.Worker.AzureStorageQueue
         }
 
         /// <summary>
-        /// Default {QueueName} - poison
+        /// Default {QueueName}-poison
         /// </summary>
         public string PoisonQueueName
         {
@@ -83,6 +85,7 @@ namespace Likvido.Worker.AzureStorageQueue
         public int? ProcessingIssueStopHostCode { get; set; } //null means no stop usefull
 
         /// <summary>
+        /// The time the worker sleeps when there are no messages in the queue
         /// Default is 30 seconds
         /// </summary>
         public TimeSpan NoMessagesSleepDuration
@@ -103,6 +106,7 @@ namespace Likvido.Worker.AzureStorageQueue
         }
 
         /// <summary>
+        /// The maximum number of times a message will be retried
         /// Default is 5
         /// </summary>
         public int MaxRetryCount
@@ -112,7 +116,7 @@ namespace Likvido.Worker.AzureStorageQueue
             {
                 if (value < 1)
                 {
-                    throw new ArgumentException("Sleep duration must be 5 seconds minimum", nameof(MaxRetryCount));
+                    throw new ArgumentException("Cannot be less than 1", nameof(MaxRetryCount));
                 }
 
                 _maxRetryCount = value;
