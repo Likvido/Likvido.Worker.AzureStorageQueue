@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Azure;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using Microsoft.ApplicationInsights;
@@ -51,13 +52,12 @@ namespace Likvido.Worker.AzureStorageQueue
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
-                    QueueMessage? queueMessage = null;
                     try
                     {
-                        var queueMessageResponse = await queueClient
+                        Response<QueueMessage[]>? queueMessageResponse = await queueClient
                             .ReceiveMessagesAsync(1, _workerOptions.VisibilityTimeout, stoppingToken);
 
-                        queueMessage = queueMessageResponse?.Value.FirstOrDefault();
+                        QueueMessage? queueMessage = queueMessageResponse?.Value.FirstOrDefault();
 
                         if (queueMessage == null)
                         {
@@ -82,7 +82,7 @@ namespace Likvido.Worker.AzureStorageQueue
                 _telemetryClient.Flush();
                 if (_workerOptions.FlushTimeout.HasValue)
                 {
-                    //https://github.com/microsoft/ApplicationInsights-dotnet/issues/407
+                    // https://github.com/microsoft/ApplicationInsights-dotnet/issues/407
                     await Task.Delay(_workerOptions.FlushTimeout.Value, CancellationToken.None);
                 }
             }
@@ -92,6 +92,5 @@ namespace Likvido.Worker.AzureStorageQueue
                 await _exceptionHandler.HandleUnhandledExceptionAsync(null, ex, _workerOptions.SetupIssueStopHostCode);
             }
         }
-
     }
 }
