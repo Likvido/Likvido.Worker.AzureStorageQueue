@@ -67,6 +67,12 @@ namespace Likvido.Worker.AzureStorageQueue
                         }
 
                         await processor.ProcessMessage(queueMessage, stoppingToken);
+
+                        if (_workerOptions.SleepBetweenEachMessage.HasValue)
+                        {
+                            _logger.LogInformation("Sleep between each message is enabled. Sleeping for {SleepBetweenEachMessage}", _workerOptions.SleepBetweenEachMessage.Value);
+                            await Task.Delay(_workerOptions.SleepBetweenEachMessage.Value, stoppingToken);
+                        }
                     }
                     catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                     {

@@ -123,6 +123,11 @@ namespace Likvido.Worker.AzureStorageQueue
             }
         }
 
+        /// <summary>
+        /// Optional sleep duration after processing each message
+        /// </summary>
+        public TimeSpan? SleepBetweenEachMessage { get; set; }
+
         internal void Validate()
         {
             if (string.IsNullOrWhiteSpace(_azureStorageConnectionString))
