@@ -11,6 +11,7 @@ using Microsoft.ApplicationInsights.Extensibility;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Polly;
+using Polly.Retry;
 
 namespace Likvido.Worker.AzureStorageQueue
 {
@@ -21,8 +22,8 @@ namespace Likvido.Worker.AzureStorageQueue
         private readonly AzureStorageQueueWorkerOptions _workerOptions;
         private readonly IServiceProvider _serviceProvider;
         private readonly ExceptionHandler _exceptionHandler;
-        private readonly AsyncPolicy _deleteMessagePolicy;
-        private readonly AsyncPolicy _updateMessagePolicy;
+        private readonly ResiliencePipeline _deleteMessageResiliencePipeline;
+        private readonly ResiliencePipeline _updateMessageResiliencyPipeline;
         private readonly SemaphoreSlim _messageReceiptSemaphore = new SemaphoreSlim(1, 1);
         private QueueClient? _poisonQueueClient;
         private readonly TelemetryClient _telemetryClient;
@@ -54,8 +55,8 @@ namespace Likvido.Worker.AzureStorageQueue
             _workerOptions = workerOptions;
             _serviceProvider = serviceProvider;
             _exceptionHandler = exceptionHandler;
-            _deleteMessagePolicy = GetDeleteMessagePolicy("Message deletion from a queue \"{queueName}\" failed #{retryAttempt}");
-            _updateMessagePolicy = GetDeleteMessagePolicy("Message update in a queue \"{queueName}\" failed #{retryAttempt}");
+            _deleteMessageResiliencePipeline = GetMessageActionResiliencePipeline("Message deletion from a queue \"{queueName}\" failed #{retryAttempt}");
+            _updateMessageResiliencyPipeline = GetMessageActionResiliencePipeline("Message update in a queue \"{queueName}\" failed #{retryAttempt}");
             _telemetryClient = telemetryClient;
         }
 
@@ -150,9 +151,9 @@ namespace Likvido.Worker.AzureStorageQueue
                 {
                     await updateVisibilityStopAction.DisposeAsync();
                 }
-                await _deleteMessagePolicy
-                    .ExecuteAsync(() =>
-                        queueClient.DeleteMessageAsync(messageDetails.Message.MessageId, messageDetails.Receipt));
+                await _deleteMessageResiliencePipeline
+                    .ExecuteAsync(async cancellationToken =>
+                        await queueClient.DeleteMessageAsync(messageDetails.Message.MessageId, messageDetails.Receipt, cancellationToken));
             });
         }
 
@@ -239,13 +240,13 @@ namespace Likvido.Worker.AzureStorageQueue
 
                     await ModifyMessageAsync(async () =>
                     {
-                        var result = await _updateMessagePolicy.ExecuteAsync(() =>
-                        queueClient.UpdateMessageAsync(
-                            messageDetails.Message.MessageId,
-                            messageDetails.Receipt,
-                            messageDetails.Message.MessageText,
-                            timeout,
-                            token));
+                        var result = await _updateMessageResiliencyPipeline.ExecuteAsync(async cancellationToken =>
+                            await queueClient.UpdateMessageAsync(
+                                messageDetails.Message.MessageId,
+                                messageDetails.Receipt,
+                                messageDetails.Message.MessageText,
+                                timeout,
+                                cancellationToken), token);
 
                         //all further operations should be done with the new receipt otherwise 404
                         messageDetails.Receipt = result.Value.PopReceipt;
@@ -262,23 +263,21 @@ namespace Likvido.Worker.AzureStorageQueue
             }
         }
 
-        private AsyncPolicy GetDeleteMessagePolicy(string failureText)
-        {
-            var attemptsCount = 3;
-            //the delay has to be short otherwise we will block other messages from being processed
-            Func<int, TimeSpan> defaultWaitCalc = retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt - attemptsCount));
-            Action<Exception, int> onRetry = (exception, retryAttempt)
-                    => _logger.LogError(
-                        exception,
-                        failureText, _workerOptions.QueueName, retryAttempt);
-
-            return Policy
-                .Handle<Exception>()
-                .WaitAndRetryAsync(
-                attemptsCount,
-                defaultWaitCalc,
-                (exception, _, retryAttempt, __) => onRetry.Invoke(exception, retryAttempt));
-        }
+        private ResiliencePipeline GetMessageActionResiliencePipeline(string failureText) =>
+            new ResiliencePipelineBuilder()
+                .AddRetry(new RetryStrategyOptions
+                {
+                    ShouldHandle = new PredicateBuilder().Handle<Exception>(),
+                    MaxRetryAttempts = 3,
+                    Delay = TimeSpan.FromSeconds(2),
+                    BackoffType = DelayBackoffType.Exponential,
+                    OnRetry = args =>
+                    {
+                        _logger.LogError(args.Outcome.Exception, failureText, _workerOptions.QueueName, args.AttemptNumber);
+                        return default;
+                    }
+                })
+                .Build();
 
         /// <summary>
         /// Any operations to a message need to be done via this helper function
