@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
+using Likvido.CloudEvents;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -188,8 +189,36 @@ namespace Likvido.Worker.AzureStorageQueue
                 return (TMessage)Convert.ChangeType(message, typeof(TMessage), CultureInfo.InvariantCulture);
             }
 
+            var messageText = message.GetMessageText(_workerOptions.Base64Decode);
+
+            // Temporary workaround for CloudEvent deserialization
+            if (typeof(TMessage).IsGenericType && typeof(TMessage).GetGenericTypeDefinition() == typeof(CloudEvent<>))
+            {
+                var actualType = typeof(TMessage).GetGenericArguments()[0];
+                var document = JsonDocument.Parse(messageText);
+
+                if (!document.RootElement.TryGetProperty("Data", out _))
+                {
+                    var cloudEventType = typeof(CloudEvent<>).MakeGenericType(actualType);
+                    dynamic cloudEvent = Activator.CreateInstance(cloudEventType);
+                    dynamic? data = JsonSerializer.Deserialize(messageText, actualType, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true,
+                        AllowTrailingCommas = true,
+                        ReadCommentHandling = JsonCommentHandling.Skip
+                    });
+
+                    if (data != null)
+                    {
+                        cloudEvent.Data = data;
+
+                        return (TMessage)cloudEvent;
+                    }
+                }
+            }
+
             return JsonSerializer.Deserialize<TMessage>(
-                message.GetMessageText(_workerOptions.Base64Decode),
+                messageText,
                 new JsonSerializerOptions
                 {
                     PropertyNameCaseInsensitive = true,
