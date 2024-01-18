@@ -197,7 +197,17 @@ namespace Likvido.Worker.AzureStorageQueue
                 var actualType = typeof(TMessage).GetGenericArguments()[0];
                 var document = JsonDocument.Parse(messageText);
 
-                if (!document.RootElement.TryGetProperty("Data", out _))
+                bool hasDataProperty = false;
+                foreach (JsonProperty property in document.RootElement.EnumerateObject())
+                {
+                    if (string.Equals(property.Name, "Data", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasDataProperty = true;
+                        break;
+                    }
+                }
+
+                if (!hasDataProperty)
                 {
                     var cloudEventType = typeof(CloudEvent<>).MakeGenericType(actualType);
                     dynamic cloudEvent = Activator.CreateInstance(cloudEventType);
