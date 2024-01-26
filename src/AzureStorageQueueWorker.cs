@@ -62,7 +62,7 @@ namespace Likvido.Worker.AzureStorageQueue
                         if (queueMessage == null)
                         {
                             _logger.LogInformation("No messages, sleeping...");
-                            await Task.Delay(_workerOptions.NoMessagesSleepDuration, stoppingToken);
+                            await Task.Delay(GetSleepDuration(), stoppingToken);
                             continue;
                         }
 
@@ -97,6 +97,11 @@ namespace Likvido.Worker.AzureStorageQueue
                 _logger.SetupExceptionOccurred(ex);
                 await _exceptionHandler.HandleUnhandledExceptionAsync(null, ex, _workerOptions.SetupIssueStopHostCode);
             }
+        }
+
+        private TimeSpan GetSleepDuration()
+        {
+            return _workerOptions.NoMessagesSleepDuration ?? TimeSpan.FromSeconds(new Random().Next(5, 40));
         }
     }
 }
