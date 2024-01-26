@@ -6,7 +6,7 @@ namespace Likvido.Worker.AzureStorageQueue
 {
     public class AzureStorageQueueWorkerOptions
     {
-        private TimeSpan _noMessagesSleepDuration = TimeSpan.FromSeconds(30);
+        private TimeSpan? _noMessagesSleepDuration;
         private string? _queueName;
         private string? _azureStorageConnectionString;
         private TimeSpan _visibilityTimeout = TimeSpan.FromSeconds(30);
@@ -86,9 +86,9 @@ namespace Likvido.Worker.AzureStorageQueue
 
         /// <summary>
         /// The time the worker sleeps when there are no messages in the queue
-        /// Default is 30 seconds
+        /// Default is a random number of seconds between 5 and 40
         /// </summary>
-        public TimeSpan NoMessagesSleepDuration
+        public TimeSpan? NoMessagesSleepDuration
         {
             get { return _noMessagesSleepDuration; }
             set
