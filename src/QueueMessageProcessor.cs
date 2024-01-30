@@ -198,12 +198,15 @@ namespace Likvido.Worker.AzureStorageQueue
                 var document = JsonDocument.Parse(messageText);
 
                 bool hasDataProperty = false;
-                foreach (JsonProperty property in document.RootElement.EnumerateObject())
+                if (document.RootElement.ValueKind == JsonValueKind.Object)
                 {
-                    if (string.Equals(property.Name, "Data", StringComparison.OrdinalIgnoreCase))
+                    foreach (JsonProperty property in document.RootElement.EnumerateObject())
                     {
-                        hasDataProperty = true;
-                        break;
+                        if (string.Equals(property.Name, "Data", StringComparison.OrdinalIgnoreCase))
+                        {
+                            hasDataProperty = true;
+                            break;
+                        }
                     }
                 }
 
@@ -211,12 +214,15 @@ namespace Likvido.Worker.AzureStorageQueue
                 {
                     var cloudEventType = typeof(CloudEvent<>).MakeGenericType(actualType);
                     dynamic cloudEvent = Activator.CreateInstance(cloudEventType);
-                    dynamic? data = JsonSerializer.Deserialize(messageText, actualType, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true,
-                        AllowTrailingCommas = true,
-                        ReadCommentHandling = JsonCommentHandling.Skip
-                    });
+                    dynamic? data = document.RootElement.ValueKind == JsonValueKind.String
+                        ? messageText
+                        : JsonSerializer.Deserialize(messageText, actualType,
+                            new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true,
+                                AllowTrailingCommas = true,
+                                ReadCommentHandling = JsonCommentHandling.Skip
+                            });
 
                     if (data != null)
                     {
