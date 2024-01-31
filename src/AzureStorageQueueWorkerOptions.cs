@@ -1,17 +1,14 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using JetBrains.Annotations;
 
 namespace Likvido.Worker.AzureStorageQueue
 {
+    [PublicAPI]
     public class AzureStorageQueueWorkerOptions
     {
-        private TimeSpan? _noMessagesSleepDuration;
-        private string? _queueName;
-        private string? _azureStorageConnectionString;
-        private TimeSpan _visibilityTimeout = TimeSpan.FromSeconds(30);
         private string? _poisonQueueName;
-        private int _maxRetryCount = 5;
         private string? _operationName;
 
         /// <summary>
@@ -24,24 +21,9 @@ namespace Likvido.Worker.AzureStorageQueue
         /// The time the message is invisible in the queue after it has been read
         /// Default 30 seconds which is default for QueueClient.ReceiveMessagesAsync
         /// </summary>
-        public TimeSpan VisibilityTimeout
-        {
-            get { return _visibilityTimeout; }
-            set
-            {
-                if (TimeSpan.FromSeconds(5) > value)
-                {
-                    throw new ArgumentException("Must be minimum 5 seconds", nameof(VisibilityTimeout));
-                }
-                _visibilityTimeout = value;
-            }
-        }
+        public TimeSpan VisibilityTimeout { get; set; } = TimeSpan.FromSeconds(30);
 
-        public string QueueName
-        {
-            get { return _queueName!; }
-            set { _queueName = value; }
-        }
+        public required string QueueName { get; set; }
 
         public string OperationName
         {
@@ -73,55 +55,24 @@ namespace Likvido.Worker.AzureStorageQueue
             set { _poisonQueueName = value; }
         }
 
-        public string AzureStorageConnectionString
-        {
-            get { return _azureStorageConnectionString!; }
-            set { _azureStorageConnectionString = value; }
-        }
+        public required string AzureStorageConnectionString { get; set; }
 
         public Func<IServiceProvider, Exception, Task>? UnhandledExceptionHandler { get; set; }
         public bool Base64Decode { get; set; } = true;
-        public int? SetupIssueStopHostCode { get; set; } //null means no stop usefull
-        public int? ProcessingIssueStopHostCode { get; set; } //null means no stop usefull
+        public int? SetupIssueStopHostCode { get; set; } // null means no stop useful
+        public int? ProcessingIssueStopHostCode { get; set; } // null means no stop useful
 
         /// <summary>
         /// The time the worker sleeps when there are no messages in the queue
         /// Default is a random number of seconds between 5 and 40
         /// </summary>
-        public TimeSpan? NoMessagesSleepDuration
-        {
-            get { return _noMessagesSleepDuration; }
-            set
-            {
-                if (value == null)
-                {
-                    throw new ArgumentNullException(nameof(NoMessagesSleepDuration));
-                }
-                if (TimeSpan.FromSeconds(5) > value)
-                {
-                    throw new ArgumentException("Sleep duration must be 5 seconds minimum", nameof(NoMessagesSleepDuration));
-                }
-                _noMessagesSleepDuration = value;
-            }
-        }
+        public TimeSpan? NoMessagesSleepDuration { get; set; }
 
         /// <summary>
         /// The maximum number of times a message will be retried
         /// Default is 5
         /// </summary>
-        public int MaxRetryCount
-        {
-            get { return _maxRetryCount; }
-            set
-            {
-                if (value < 1)
-                {
-                    throw new ArgumentException("Cannot be less than 1", nameof(MaxRetryCount));
-                }
-
-                _maxRetryCount = value;
-            }
-        }
+        public int MaxRetryCount { get; set; } = 5;
 
         /// <summary>
         /// Optional sleep duration after processing each message
@@ -130,18 +81,30 @@ namespace Likvido.Worker.AzureStorageQueue
 
         internal void Validate()
         {
-            if (string.IsNullOrWhiteSpace(_azureStorageConnectionString))
+            if (string.IsNullOrWhiteSpace(AzureStorageConnectionString))
             {
                 throw new ValidationException($"{nameof(AzureStorageConnectionString)} must be defined.");
             }
-            if (string.IsNullOrWhiteSpace(_queueName))
+
+            if (string.IsNullOrWhiteSpace(QueueName))
             {
-                throw new ArgumentNullException($"{nameof(QueueName)} must be defined.");
+                throw new ValidationException($"{nameof(QueueName)} must be defined.");
+            }
+
+            if (TimeSpan.FromSeconds(5) > VisibilityTimeout)
+            {
+                throw new ValidationException($"{nameof(VisibilityTimeout)} must be minimum 5 seconds.");
+            }
+
+            if (NoMessagesSleepDuration.HasValue && TimeSpan.FromSeconds(5) > NoMessagesSleepDuration)
+            {
+                throw new ValidationException($"{nameof(NoMessagesSleepDuration)} must be minimum 5 seconds.");
+            }
+
+            if (MaxRetryCount < 1)
+            {
+                throw new ValidationException($"{nameof(MaxRetryCount)} cannot be less than 1");
             }
         }
-    }
-
-    public class AzureStorageQueueWorkerOptions<TMessageProcessor> : AzureStorageQueueWorkerOptions
-    {
     }
 }
