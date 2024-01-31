@@ -1,48 +1,45 @@
 ﻿using System;
 using System.Linq;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using Microsoft.ApplicationInsights;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Likvido.Worker.AzureStorageQueue
 {
-    public class AzureStorageQueueWorker<TMessage, TMessageProcessor> : BackgroundService
-        where TMessageProcessor : IMessageProcessor<TMessage>
+    internal class AzureStorageQueueWorker : BackgroundService
     {
         private readonly ILogger _logger;
-        private readonly AzureStorageQueueWorkerOptions<TMessageProcessor> _workerOptions;
+        private readonly AzureStorageQueueWorkerOptions _workerOptions;
         private readonly ExceptionHandler _exceptionHandler;
         private readonly TelemetryClient _telemetryClient;
         private readonly IServiceProvider _serviceProvider;
 
-        public AzureStorageQueueWorker(
-            ILogger<AzureStorageQueueWorker<TMessage, TMessageProcessor>> logger,
-            IServiceProvider serviceProvider,
-            IHostApplicationLifetime hostApplicationLifetime,
-            AzureStorageQueueWorkerOptions<TMessageProcessor> workerOptions,
-            TelemetryClient telemetryClient)
+        public AzureStorageQueueWorker(IServiceProvider serviceProvider, AzureStorageQueueWorkerOptions workerOptions)
         {
-            _logger = logger;
-            _workerOptions = workerOptions;
-            _exceptionHandler = new ExceptionHandler(logger, workerOptions, serviceProvider, hostApplicationLifetime);
-            _telemetryClient = telemetryClient;
             _serviceProvider = serviceProvider;
+            _workerOptions = workerOptions;
+
+            _logger = serviceProvider.GetRequiredService<ILogger<AzureStorageQueueWorker>>();
+            _exceptionHandler = new ExceptionHandler(_logger, workerOptions, serviceProvider, serviceProvider.GetRequiredService<IHostApplicationLifetime>());
+            _telemetryClient = serviceProvider.GetRequiredService<TelemetryClient>();
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            var processorName = typeof(TMessageProcessor).FullName;
+            var processorName = Assembly.GetEntryAssembly()?.GetName().Name;
             using var logScope = _logger.BeginScope("{Processor} reads {queueName}", processorName, _workerOptions.QueueName);
             try
             {
                 var queueClient = new QueueClient(_workerOptions.AzureStorageConnectionString, _workerOptions.QueueName);
                 await queueClient.CreateIfNotExistsAsync(cancellationToken: CancellationToken.None);
-                using var processor = new QueueMessageProcessor<TMessage, TMessageProcessor>(
+                using var processor = new QueueMessageProcessor(
                             _logger,
                             queueClient,
                             _serviceProvider,
@@ -57,7 +54,7 @@ namespace Likvido.Worker.AzureStorageQueue
                         Response<QueueMessage[]>? queueMessageResponse = await queueClient
                             .ReceiveMessagesAsync(1, _workerOptions.VisibilityTimeout, stoppingToken);
 
-                        QueueMessage? queueMessage = queueMessageResponse?.Value.FirstOrDefault();
+                        var queueMessage = queueMessageResponse?.Value.FirstOrDefault();
 
                         if (queueMessage == null)
                         {
