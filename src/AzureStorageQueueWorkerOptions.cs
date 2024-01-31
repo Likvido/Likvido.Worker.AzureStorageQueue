@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
 using JetBrains.Annotations;
@@ -79,6 +80,13 @@ namespace Likvido.Worker.AzureStorageQueue
         /// </summary>
         public TimeSpan? SleepBetweenEachMessage { get; set; }
 
+        /// <summary>
+        /// Configures which event types should be handled by which handler types
+        /// The event type is the value of the CloudEvent.Type property
+        /// You can use the special value "*" to match all event types
+        /// </summary>
+        public IDictionary<string, Type> EventTypeHandlerMapping { get; } = new Dictionary<string, Type>(StringComparer.OrdinalIgnoreCase);
+
         internal void Validate()
         {
             if (string.IsNullOrWhiteSpace(AzureStorageConnectionString))
@@ -104,6 +112,11 @@ namespace Likvido.Worker.AzureStorageQueue
             if (MaxRetryCount < 1)
             {
                 throw new ValidationException($"{nameof(MaxRetryCount)} cannot be less than 1");
+            }
+
+            if (EventTypeHandlerMapping.Count == 0)
+            {
+                throw new ValidationException($"{nameof(EventTypeHandlerMapping)} must contain at least one mapping.");
             }
         }
     }
