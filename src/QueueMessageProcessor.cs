@@ -1,11 +1,13 @@
-﻿using System;
-using System.Globalization;
+using System;
+using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Azure.Storage.Queues;
 using Azure.Storage.Queues.Models;
 using Likvido.CloudEvents;
+using Likvido.Worker.AzureStorageQueue.MessageHandling;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -16,8 +18,7 @@ using Polly.Retry;
 
 namespace Likvido.Worker.AzureStorageQueue
 {
-    public sealed class QueueMessageProcessor<TMessage, TMessageProcessor> : IDisposable
-        where TMessageProcessor : IMessageProcessor<TMessage>
+    internal sealed class QueueMessageProcessor : IDisposable
     {
         private readonly ILogger _logger;
         private readonly AzureStorageQueueWorkerOptions _workerOptions;
@@ -43,12 +44,11 @@ namespace Likvido.Worker.AzureStorageQueue
             }
         }
 
-        public QueueMessageProcessor(
-            ILogger logger,
+        public QueueMessageProcessor(ILogger logger,
             QueueClient queueClient,
             IServiceProvider serviceProvider,
             ExceptionHandler exceptionHandler,
-            AzureStorageQueueWorkerOptions<TMessageProcessor> workerOptions,
+            AzureStorageQueueWorkerOptions workerOptions,
             TelemetryClient telemetryClient)
         {
             _logger = logger;
@@ -69,9 +69,9 @@ namespace Likvido.Worker.AzureStorageQueue
             }
 
             //Running this as separate task gives the following benefits
-            //1. ExecutionContext isn't overlap between message processors
+            //1. ExecutionContext isn't overlap between message handlers
             //2. Makes message parallel processing easier
-            await Task.Yield();//makes execution parallel immidiatly for the reasons above
+            await Task.Yield();//makes execution parallel immediately for the reasons above
 
             var processed = false;
             MessageDetails? messageDetails = null;
@@ -88,14 +88,12 @@ namespace Likvido.Worker.AzureStorageQueue
                 operation.Telemetry.Properties["OperationName"] = _workerOptions.OperationName;
                 operation.Telemetry.Properties["TriggerReason"] = $"New queue message detected on '{_workerOptions.QueueName}'.";
                 operation.Telemetry.Properties["QueueName"] = _workerOptions.QueueName;
-                operation.Telemetry.Properties["Processor"] = typeof(TMessageProcessor).Name;
+                operation.Telemetry.Properties["Robot"] = Assembly.GetEntryAssembly()?.GetName().Name;
 
                 updateVisibilityStopAction = await StartKeepMessageInvisibleAsync(_queueClient, messageDetails);
 
                 scope = _serviceProvider.CreateScope();
-                var messageProcessor = scope.ServiceProvider.GetRequiredService<TMessageProcessor>();
-                var lastAttempt = messageDetails.Message.DequeueCount >= _workerOptions.MaxRetryCount;
-                await messageProcessor.ProcessMessage(GetTypedMessage(queueMessage), lastAttempt, stoppingToken);
+                await ProcessMessage(messageDetails, scope, stoppingToken);
 
                 stoppingToken.ThrowIfCancellationRequested();
 
@@ -141,6 +139,50 @@ namespace Likvido.Worker.AzureStorageQueue
             }
         }
 
+        private async Task ProcessMessage(
+            MessageDetails messageDetails,
+            IServiceScope scope,
+            CancellationToken stoppingToken)
+        {
+            var dataType = GetDataType(messageDetails.Message);
+            var cloudEventType = typeof(CloudEvent<>).MakeGenericType(dataType);
+            var messageHandlerType = typeof(IMessageHandler<,>).MakeGenericType(cloudEventType, dataType);
+            var lastAttempt = messageDetails.Message.DequeueCount >= _workerOptions.MaxRetryCount;
+            var message = JsonSerializer.Deserialize(
+                messageDetails.Message.GetMessageText(_workerOptions.Base64Decode),
+                cloudEventType,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    AllowTrailingCommas = true,
+                    ReadCommentHandling = JsonCommentHandling.Skip
+                })!;
+
+            var messageHandler = (IMessageHandlerBase)scope.ServiceProvider.GetRequiredService(messageHandlerType);
+            await messageHandler.HandleMessage(message, lastAttempt, stoppingToken);
+        }
+
+        private Type GetDataType(QueueMessage message)
+        {
+            var messageText = message.GetMessageText(_workerOptions.Base64Decode);
+            var document = JsonDocument.Parse(messageText);
+
+            var type =
+                (document.RootElement.EnumerateObject()
+                    .Where(property => string.Equals(property.Name, "Type", StringComparison.OrdinalIgnoreCase))
+                    .Select(property => property.Value.GetString())).FirstOrDefault();
+
+            if (type == null || !_workerOptions.EventTypeHandlerMapping.TryGetValue(type, out var dataType))
+            {
+                if (!_workerOptions.EventTypeHandlerMapping.TryGetValue("*", out dataType))
+                {
+                    throw new InvalidOperationException($"Event type is not registered in the {nameof(_workerOptions.EventTypeHandlerMapping)}: '{type}'");
+                }
+            }
+
+            return dataType;
+        }
+
         private async Task DeleteMessageAsync(
             QueueClient queueClient,
             MessageDetails messageDetails,
@@ -175,72 +217,6 @@ namespace Likvido.Worker.AzureStorageQueue
                     _logger.LogError(e, "TryMoveToPoisonAsync failed poison queue{poison_queue}", _workerOptions.PoisonQueueName);
                 }
             }
-        }
-
-        private TMessage GetTypedMessage(QueueMessage message)
-        {
-            if (typeof(TMessage) == typeof(string))
-            {
-                return (TMessage)Convert.ChangeType(message.GetMessageText(_workerOptions.Base64Decode), typeof(TMessage), CultureInfo.InvariantCulture);
-            }
-
-            if (typeof(TMessage) == typeof(QueueMessage))
-            {
-                return (TMessage)Convert.ChangeType(message, typeof(TMessage), CultureInfo.InvariantCulture);
-            }
-
-            var messageText = message.GetMessageText(_workerOptions.Base64Decode);
-
-            // Temporary workaround for CloudEvent deserialization
-            if (typeof(TMessage).IsGenericType && typeof(TMessage).GetGenericTypeDefinition() == typeof(CloudEvent<>))
-            {
-                var actualType = typeof(TMessage).GetGenericArguments()[0];
-                var document = JsonDocument.Parse(messageText);
-
-                bool hasDataProperty = false;
-                if (document.RootElement.ValueKind == JsonValueKind.Object)
-                {
-                    foreach (JsonProperty property in document.RootElement.EnumerateObject())
-                    {
-                        if (string.Equals(property.Name, "Data", StringComparison.OrdinalIgnoreCase))
-                        {
-                            hasDataProperty = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (!hasDataProperty)
-                {
-                    var cloudEventType = typeof(CloudEvent<>).MakeGenericType(actualType);
-                    dynamic cloudEvent = Activator.CreateInstance(cloudEventType);
-                    dynamic? data = document.RootElement.ValueKind == JsonValueKind.String
-                        ? messageText
-                        : JsonSerializer.Deserialize(messageText, actualType,
-                            new JsonSerializerOptions
-                            {
-                                PropertyNameCaseInsensitive = true,
-                                AllowTrailingCommas = true,
-                                ReadCommentHandling = JsonCommentHandling.Skip
-                            });
-
-                    if (data != null)
-                    {
-                        cloudEvent.Data = data;
-
-                        return (TMessage)cloudEvent;
-                    }
-                }
-            }
-
-            return JsonSerializer.Deserialize<TMessage>(
-                messageText,
-                new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true,
-                    AllowTrailingCommas = true,
-                    ReadCommentHandling = JsonCommentHandling.Skip
-                })!;
         }
 
         private Task<IAsyncDisposable> StartKeepMessageInvisibleAsync(
