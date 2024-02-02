@@ -61,7 +61,7 @@ namespace Likvido.Worker.AzureStorageQueue
                             ServiceLifetime.Singleton));
             }
 
-            serviceCollection.AddHostedService(sp => new AzureStorageQueueWorker(sp, options));
+            serviceCollection.AddSingleton<IHostedService>(sp => new AzureStorageQueueWorker(sp, options));
 
             return serviceCollection;
         }
