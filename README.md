@@ -1,3 +1,5 @@
+# Deprecated. Please use [Likvido.QueueRobot](https://github.com/Likvido/Likvido.QueueRobot) instead
+
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/likvido/Likvido.Worker.AzureStorageQueue/nuget.yml)](https://img.shields.io/github/actions/workflow/status/likvido/Likvido.Worker.AzureStorageQueue/nuget.yml)
 [![Nuget](https://img.shields.io/nuget/v/Likvido.Worker.AzureStorageQueue)](https://www.nuget.org/packages/Likvido.Worker.AzureStorageQueue/)
 # Likvido.Worker.AzureStorageQueue
